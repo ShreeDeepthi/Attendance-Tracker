@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Attendance Report</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body onload="checkLogin(); displayAttendanceReport();">
+  <header>
+    <h2>Attendance Tracker</h2>
+    <nav>
+      <a href="attendance_marking.html">Mark Attendance</a>
+      <a href="attendance_report.html">Reports</a>
+      <a href="notification.html">Notifications</a>
+      <a href="#" onclick="logoutUser()">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <h3>Attendance Report</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Student Name</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="reportBody"></tbody>
+    </table>
+  </div>
+</body>
+</html>

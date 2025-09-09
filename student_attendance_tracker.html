@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Student Attendance Tracker</title>
+  <style>
+    :root{--bg:#f7f9fc;--card:#fff;--accent:#4f46e5;--muted:#6b7280;--success:#10b981}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:#111}
+    .wrap{max-width:980px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(16,24,40,0.06)}
+    .controls{display:flex;gap:12px;flex-wrap:wrap}
+    input[type=text],select,input[type=date]{padding:8px 10px;border-radius:8px;border:1px solid #e6e9ef}
+    button{background:var(--accent);color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(79,70,229,0.14)}
+    .grid{display:grid;grid-template-columns:1fr 320px;gap:16px;margin-top:16px}
+    .students-list{max-height:420px;overflow:auto}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #f1f3f7;text-align:left}
+    th{position:sticky;top:0;background:linear-gradient(#fff,#fff)}
+    .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+    .present{background:var(--success)}
+    .absent{background:#ef4444}
+    .small{font-size:13px;color:var(--muted)}
+    .actions{display:flex;gap:8px}
+    .export{margin-top:12px}
+    footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+    @media(max-width:860px){.grid{grid-template-columns:1fr;}.controls{flex-direction:column;align-items:stretch}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Student Attendance Tracker</h1>
+      <div class="small">Stores attendance locally in your browser (localStorage)</div>
+    </header>
+
+    <div class="card">
+      <div class="controls">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input id="studentName" type="text" placeholder="Add student name (press Add)" />
+          <button id="addStudentBtn">Add</button>
+          <button id="clearAllBtn" class="ghost">Clear all</button>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center">
+          <label for="datePicker" class="small">Date</label>
+          <input id="datePicker" type="date" />
+          <select id="viewMode">
+            <option value="day">View: Single day</option>
+            <option value="all">View: All dates (summary)</option>
+          </select>
+        </div>
+
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button id="markAllPresent" class="ghost">Mark all Present</button>
+          <button id="markAllAbsent" class="ghost">Mark all Absent</button>
+          <button id="exportCsv">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <h3 style="margin:12px 0">Students</h3>
+          <div class="card students-list" id="studentsCard">
+            <table id="studentsTable">
+              <thead>
+                <tr><th style="width:48%">Name</th><th style="width:26%">Status</th><th style="width:26%">Actions</th></tr>
+              </thead>
+              <tbody id="studentsTbody"></tbody>
+            </table>
+            <div id="emptyState" class="small" style="padding:12px;display:none">No students yet — add a student to begin taking attendance.</div>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="margin:12px 0">Summary</h3>
+          <div class="card small" style="padding:12px" id="summaryCard">
+            <div id="summaryText">Select a date to see attendance summary.</div>
+            <div class="export">
+              <label class="small">Export range: </label>
+              <input id="exportFrom" type="date" />
+              <input id="exportTo" type="date" />
+              <button id="exportRangeBtn">Export Range CSV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer>Tip: This tracker uses your browser for storage. To share or backup, use Export CSV.</footer>
+    </div>
+  </div>
+
+  <script>
+    // Simple student attendance tracker
+    // Data model in localStorage:
+    // students: [{id, name}]
+    // attendance: { 'YYYY-MM-DD': { studentId: true/false } }
+
+    const lsStudentsKey = 'att_students_v1'
+    const lsAttendanceKey = 'att_data_v1'
+
+    // helpers
+    const q = id => document.getElementById(id)
+    const todayISO = () => new Date().toISOString().slice(0,10)
+
+    // state
+    let students = JSON.parse(localStorage.getItem(lsStudentsKey) || '[]')
+    let attendance = JSON.parse(localStorage.getItem(lsAttendanceKey) || '{}')
+
+    // elements
+    const studentName = q('studentName')
+    const addStudentBtn = q('addStudentBtn')
+    const studentsTbody = q('studentsTbody')
+    const emptyState = q('emptyState')
+    const datePicker = q('datePicker')
+    const viewMode = q('viewMode')
+    const summaryText = q('summaryText')
+    const exportCsvBtn = q('exportCsv')
+    const markAllPresent = q('markAllPresent')
+    const markAllAbsent = q('markAllAbsent')
+    const clearAllBtn = q('clearAllBtn')
+    const exportFrom = q('exportFrom')
+    const exportTo = q('exportTo')
+    const exportRangeBtn = q('exportRangeBtn')
+
+    // initialize
+    function init(){
+      if(!datePicker.value) datePicker.value = todayISO()
+      renderStudents()
+      renderSummary()
+    }
+
+    function saveStudents(){ localStorage.setItem(lsStudentsKey, JSON.stringify(students)) }
+    function saveAttendance(){ localStorage.setItem(lsAttendanceKey, JSON.stringify(attendance)) }
+
+    function uid(){ return 's' + Math.random().toString(36).slice(2,9) }
+
+    // UI actions
+    addStudentBtn.addEventListener('click', ()=>{
+      const name = studentName.value.trim()
+      if(!name) return alert('Please enter a student name')
+      const newStudent = { id: uid(), name }
+      students.push(newStudent)
+      saveStudents()
+      studentName.value = ''
+      renderStudents()
+    })
+
+    clearAllBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear ALL students and attendance? This cannot be undone.')) return
+      students = []
+      attendance = {}
+      saveStudents(); saveAttendance();
+      renderStudents(); renderSummary();
+    })
+
+    datePicker.addEventListener('change', ()=>{ renderStudents(); renderSummary() })
+    viewMode.addEventListener('change', ()=>{ renderStudents(); renderSummary() })
+
+    markAllPresent.addEventListener('click', ()=>{ batchMark(true) })
+    markAllAbsent.addEventListener('click', ()=>{ batchMark(false) })
+
+    exportCsvBtn.addEventListener('click', ()=>{ exportCSVForDate(datePicker.value) })
+    exportRangeBtn.addEventListener('click', ()=>{
+      const from = exportFrom.value; const to = exportTo.value
+      if(!from || !to) return alert('Select both from and to dates')
+      exportCSVRange(from, to)
+    })
+
+    function batchMark(present){
+      const d = datePicker.value
+      if(!d) return alert('Select a valid date')
+      attendance[d] = attendance[d] || {}
+      students.forEach(s => attendance[d][s.id] = present)
+      saveAttendance(); renderStudents(); renderSummary()
+    }
+
+    function renderStudents(){
+      studentsTbody.innerHTML = ''
+      if(students.length === 0){ emptyState.style.display='block'; return }
+      emptyState.style.display='none'
+      const date = datePicker.value
+      const mode = viewMode.value
+
+      students.forEach(s =>{
+        const tr = document.createElement('tr')
+        const nameTd = document.createElement('td')
+        nameTd.textContent = s.name
+
+        const statusTd = document.createElement('td')
+        if(mode === 'day'){
+          const status = (attendance[date] && attendance[date][s.id]) ? true : false
+          const label = document.createElement('label')
+          label.style.display='flex'; label.style.alignItems='center'; label.style.gap='8px'
+          const checkbox = document.createElement('input')
+          checkbox.type='checkbox'; checkbox.checked = status
+          checkbox.addEventListener('change', ()=>{
+            attendance[date] = attendance[date] || {}
+            attendance[date][s.id] = checkbox.checked
+            saveAttendance(); renderSummary()
+          })
+          const dot = document.createElement('span')
+          dot.className = 'status-dot ' + (status ? 'present' : 'absent')
+          const txt = document.createElement('span')
+          txt.textContent = status ? 'Present' : 'Absent'
+          label.appendChild(checkbox); label.appendChild(dot); label.appendChild(txt)
+          statusTd.appendChild(label)
+        } else {
+          // summary mode: show counts across dates
+          const {presentCount, total} = studentSummaryCount(s.id)
+          const pct = total ? Math.round((presentCount/total)*100) : 0
+          statusTd.innerHTML = `<div><strong>${presentCount}</strong> / ${total} <span class="small">(${pct}%)</span></div>`
+        }
+
+        const actionsTd = document.createElement('td')
+        actionsTd.className = 'actions'
+        // edit
+        const editBtn = document.createElement('button')
+        editBtn.className = 'ghost'
+        editBtn.textContent = 'Edit'
+        editBtn.addEventListener('click', ()=>{
+          const newName = prompt('Edit student name', s.name)
+          if(newName && newName.trim()){
+            s.name = newName.trim(); saveStudents(); renderStudents(); renderSummary()
+          }
+        })
+        // delete
+        const delBtn = document.createElement('button')
+        delBtn.className = 'ghost'
+        delBtn.textContent = 'Delete'
+        delBtn.addEventListener('click', ()=>{
+          if(!confirm('Delete this student?')) return
+          students = students.filter(x => x.id !== s.id)
+          // remove attendance entries for this student
+          for(const d of Object.keys(attendance)) delete attendance[d][s.id]
+          saveStudents(); saveAttendance(); renderStudents(); renderSummary()
+        })
+
+        actionsTd.appendChild(editBtn); actionsTd.appendChild(delBtn)
+
+        tr.appendChild(nameTd); tr.appendChild(statusTd); tr.appendChild(actionsTd)
+        studentsTbody.appendChild(tr)
+      })
+    }
+
+    function studentSummaryCount(studentId){
+      let presentCount = 0; let total = 0
+      for(const d of Object.keys(attendance)){
+        const rec = attendance[d]
+        if(rec && typeof rec[studentId] !== 'undefined'){
+          total++
+          if(rec[studentId]) presentCount++
+        }
+      }
+      return {presentCount, total}
+    }
+
+    function renderSummary(){
+      const d = datePicker.value
+      if(viewMode.value === 'day'){
+        const rec = attendance[d] || {}
+        const total = students.length
+        const present = students.filter(s => rec[s.id]).length
+        summaryText.innerHTML = `<strong>${present}</strong> present / ${total} total on <strong>${d}</strong>`
+      } else {
+        // overall summary
+        let rows = ''
+        students.forEach(s =>{
+          const {presentCount, total} = studentSummaryCount(s.id)
+          rows += `<div style="margin-bottom:8px"><strong>${s.name}</strong> — ${presentCount} / ${total}</div>`
+        })
+        summaryText.innerHTML = rows || 'No attendance recorded yet.'
+      }
+    }
+
+    // export helpers
+    function download(filename, content){
+      const blob = new Blob([content], {type: 'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+    }
+
+    function exportCSVForDate(date){
+      if(!date) return alert('Select a date to export')
+      const rec = attendance[date] || {}
+      let csv = 'Student Name,Status,Date\n'
+      students.forEach(s =>{
+        const status = (rec[s.id]) ? 'Present' : 'Absent'
+        csv += `"${s.name}",${status},${date}\n`
+      })
+      download(`attendance-${date}.csv`, csv)
+    }
+
+    function exportCSVRange(from, to){
+      const start = new Date(from); const end = new Date(to)
+      if(start> end) return alert('From must be earlier than To')
+      // iterate dates
+      const days = []
+      for(let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
+        days.push(d.toISOString().slice(0,10))
+      }
+      let csv = 'Date,Student Name,Status\n'
+      days.forEach(date=>{
+        const rec = attendance[date] || {}
+        students.forEach(s =>{
+          const status = (rec[s.id]) ? 'Present' : 'Absent'
+          csv += `${date},"${s.name}",${status}\n`
+        })
+      })
+      download(`attendance-${from}_to_${to}.csv`, csv)
+    }
+
+    // quick demo populate button (not shown) - helpful for testing
+    // window.__demoPopulate = () => { students = [{id:uid(),name:'Alice'},{id:uid(),name:'Bob'},{id:uid(),name:'Chitra'}]; attendance = {}; attendance[todayISO()] = {}; students.forEach(s=>attendance[todayISO()][s.id]=Math.random()>0.4); saveStudents(); saveAttendance(); init(); }
+
+    // init
+    init()
+  </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Notifications</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body onload="checkLogin(); displayNotifications();">
+  <header>
+    <h2>Attendance Tracker</h2>
+    <nav>
+      <a href="attendance_marking.html">Mark Attendance</a>
+      <a href="attendance_report.html">Reports</a>
+      <a href="notification.html">Notifications</a>
+      <a href="#" onclick="logoutUser()">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <h3>Notifications</h3>
+    <div id="notificationList"></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mark Attendance</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body onload="checkLogin(); displayStudents();">
+  <header>
+    <h2>Attendance Tracker</h2>
+    <nav>
+      <a href="attendance_marking.html">Mark Attendance</a>
+      <a href="attendance_report.html">Reports</a>
+      <a href="notification.html">Notifications</a>
+      <a href="#" onclick="logoutUser()">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <h3>Mark Attendance</h3>
+    <label for="datePicker">Select Date:</label>
+    <input type="date" id="datePicker"><br><br>
+
+    <input type="text" id="studentName" placeholder="Add new student">
+    <button onclick="addStudent()">Add Student</button>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Student Name</th>
+          <th>Present</th>
+        </tr>
+      </thead>
+      <tbody id="attendanceBody"></tbody>
+    </table>
+
+    <br>
+    <button onclick="saveAttendance()">Save Attendance</button>
+  </div>
+</body>
+</html>
